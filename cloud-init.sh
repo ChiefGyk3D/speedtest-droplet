@@ -80,7 +80,8 @@ ufw default allow outgoing
 for cidr in ${ALLOWED_CIDRS}; do
     ufw allow from "${cidr}" to any port 22 proto tcp
     for port in ${IPERF_PORTS}; do
-        ufw allow from "${cidr}" to any port "${port}"
+        ufw allow from "${cidr}" to any port "${port}" proto tcp
+        ufw allow from "${cidr}" to any port "${port}" proto udp
     done
 done
 ufw --force enable

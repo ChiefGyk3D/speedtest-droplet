@@ -15,6 +15,8 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 template="${here}/../cloud-init.sh"
+# shellcheck source=lib/cidr.sh
+source "${here}/lib/cidr.sh"
 allow_wide=0
 cidrs=()
 output=""
@@ -40,38 +42,9 @@ while (($# > 0)); do
 done
 
 if ((${#cidrs[@]} == 0)); then
-    ip="$(curl -fsS --max-time 10 https://api.ipify.org)"
-    cidrs=("${ip}/32")
+    cidrs=("$(detect_public_cidr)")
     echo "Detected public address, allowing ${cidrs[0]}" >&2
 fi
-
-check_cidr() {
-    local cidr="$1"
-    if [[ ! "${cidr}" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})/([0-9]{1,2})$ ]]; then
-        echo "Not an IPv4 CIDR: ${cidr}" >&2
-        exit 2
-    fi
-    local octet
-    for octet in "${BASH_REMATCH[@]:1:4}"; do
-        if ((10#${octet} > 255)); then
-            echo "Octet out of range in ${cidr}" >&2
-            exit 2
-        fi
-    done
-    local prefix="${BASH_REMATCH[5]}"
-    if ((10#${prefix} > 32)); then
-        echo "Prefix out of range in ${cidr}" >&2
-        exit 2
-    fi
-    if ((10#${prefix} == 0)); then
-        echo "Refusing ${cidr}: it would open the server to everyone." >&2
-        exit 2
-    fi
-    if ((10#${prefix} < 24)) && ((allow_wide == 0)); then
-        echo "Refusing ${cidr}: wider than /24. Pass --allow-wide if you mean it." >&2
-        exit 2
-    fi
-}
 for cidr in "${cidrs[@]}"; do
     check_cidr "${cidr}"
 done

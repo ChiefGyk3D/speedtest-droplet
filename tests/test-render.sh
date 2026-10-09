@@ -73,7 +73,36 @@ renders_several() {
     bash -n <<<"${out}"
 }
 
+fw="${root}/scripts/render-cloud-firewall.sh"
+
+firewall_has_udp_and_tcp() {
+    local out
+    out="$("${fw}" 203.0.113.7/32)" || return 1
+    [[ "${out}" == *"protocol:tcp,ports:5201-5202,address:203.0.113.7/32"* ]] || return 1
+    [[ "${out}" == *"protocol:udp,ports:5201-5202,address:203.0.113.7/32"* ]] || return 1
+    [[ "${out}" == *"protocol:tcp,ports:22,address:203.0.113.7/32"* ]]
+}
+
+firewall_lists_every_cidr() {
+    local out
+    out="$("${fw}" 203.0.113.7/32 198.51.100.9/32)" || return 1
+    [[ "${out}" == *"protocol:udp,ports:5201-5202,address:198.51.100.9/32"* ]] || return 1
+    [[ "${out}" == *"sources: 203.0.113.7/32 198.51.100.9/32"* ]]
+}
+
+firewall_rejects_bad_cidr() {
+    ! "${fw}" 203.0.113.7/32 0.0.0.0/0 >/dev/null 2>&1 && ! "${fw}" not-an-address >/dev/null 2>&1
+}
+
+host_rules_cover_udp() {
+    grep -q 'port "${port}" proto udp' "${root}/cloud-init.sh" && grep -q 'port "${port}" proto tcp' "${root}/cloud-init.sh"
+}
+
 check "renders a /32 and the output parses" renders_clean
+check "cloud firewall rules include TCP, UDP and SSH" firewall_has_udp_and_tcp
+check "cloud firewall rules cover every CIDR" firewall_lists_every_cidr
+check "cloud firewall renderer rejects bad or open CIDRs" firewall_rejects_bad_cidr
+check "host firewall rules cover TCP and UDP" host_rules_cover_udp
 check "renders several CIDRs" renders_several
 check "rejects the list if any one CIDR is bad" rejects 203.0.113.7/32 0.0.0.0/0
 check "-o writes a mode 600 file outside the repo" writes_file_mode_600

@@ -41,11 +41,18 @@ droplet cannot come up open to the internet.
    `mem1`), and a size whose network rate clearly exceeds the speed you want to
    test. Paste the rendered script into **Advanced options, User data**.
 
-3. Attach a DigitalOcean cloud firewall that allows only the same address(es) on TCP
-   22 and 5201 to 5202. Add **UDP** 5201 to 5202 as well if you want UDP tests
-   (`iperf3 -u`, jitter and loss): the host firewall already allows both, but a
-   TCP-only cloud firewall silently drops the UDP packets and the client just
-   hangs.
+3. Put a cloud firewall in front of the droplet. Print the rules, with TCP **and UDP**
+   on the iperf3 ports and your addresses already filled in, and either enter them
+   in the console or run the `doctl` command it prints:
+
+   ```sh
+   scripts/render-cloud-firewall.sh 203.0.113.7/32 198.51.100.9/32
+   ```
+
+   Tag each droplet `speedtest-droplet` when you create it and the firewall applies
+   at creation. The host firewall from step 2 already allows both protocols; a
+   cloud firewall that lists only TCP silently drops UDP, and `iperf3 -u` then
+   hangs at its handshake.
 
 4. Wait for setup to finish. The file `/var/lib/speedtest-droplet/ready` appears
    when it is done; the log is `/var/log/speedtest-droplet-init.log`.
