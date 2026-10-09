@@ -58,6 +58,60 @@ iperf3 -c DROPLET_IP -p 5201 -P 4 -t 20 -O 3      # upload (the client sends)
 `-O 3` leaves out the first three seconds, so TCP ramp-up does not drag the
 average down. Use port 5202 from a second host to load both servers at once.
 
+## Sizing and testing a 2.5 Gbit/s link
+
+**What we measured.** Two 2 vCPU, 4 GB droplets in different US regions, 8 parallel
+streams for 20 seconds, from a firewall in front of a 1 Gbit/s down, 500 Mbit/s up
+cable line with inline IPS:
+
+- Download to one droplet landed anywhere from 790 to 940 Mbit/s depending on the
+  droplet and path, with the same client and settings. Two droplets at the same time
+  reached about 910 to 920 Mbit/s combined.
+- Upload reached about 460 Mbit/s to one droplet and about 510 Mbit/s combined across
+  two.
+- One droplet on its own was off by roughly 15 percent from path and host variance
+  alone. When you compare a shaping or firewall change, use two servers and repeat
+  the run before believing a difference smaller than that.
+
+**Picking a size.**
+
+- A 2 vCPU droplet did not look like the limit at about 1 Gbit/s: the slower of the
+  two droplets was not at a hard ceiling, because the other, identical one reached
+  a higher number on the same line. That is an observation on this line, not a
+  guarantee for yours.
+- Check the plan's published network rate before you rely on it. Shared-CPU plans can
+  be throttled below the NIC speed.
+- Check `iperf3 --version` on the droplet. Release 3.16 made parallel streams
+  multi-threaded; older versions run every stream on one core, which caps a single
+  server well below 2.5 Gbit/s.
+
+**Going to 2.5 Gbit/s.**
+
+- Plan on two or more droplets in different regions and run them at the same time.
+  `cloud-init.sh` already starts servers on ports 5201 and 5202, so two clients, or
+  one client with two tests, can use one droplet.
+- Choose a CPU-optimised or dedicated-CPU plan with at least 4 vCPU, and confirm its
+  network rate is above what you want to measure.
+- The client matters as much as the server at this speed: use a host with a 2.5 Gbit/s
+  NIC, or test from the firewall's own WAN side.
+- Inline IDS/IPS and shaping use CPU. On the 8-thread Xeon D we tested, the busiest
+  inline Suricata worker thread reached 86 percent of a core at about 1 Gbit/s, so
+  expect the IPS to be the first limit above that.
+- Run the same test shaped and unshaped. The difference tells you what the shaper
+  costs; the unshaped number is the ceiling of the line plus the firewall.
+
+**Reading the results.**
+
+- Test from a wired client on the LAN, through the firewall, not only from the
+  firewall. With shaping on, tests that start on the firewall itself understated
+  upload by about half in our case, because locally terminated traffic interacts
+  differently with dummynet. A forwarded client reached the configured cap.
+- Wait a few seconds between runs. The server resets after each test and rejects an
+  immediate reconnect with "Connection reset by peer".
+- Watch latency during the test, not only throughput. Run `ping` to a nearby host
+  while iperf3 is running and compare it with the idle value: a shaper that is
+  working keeps the loaded latency close to idle and cuts the worst-case spikes.
+
 ## Cost and teardown
 
 A droplet bills until it is destroyed; powering it off does not stop the charge.
