@@ -31,18 +31,18 @@ apt-get install -y iperf3 ufw
 # Large socket buffers so a single flow can fill a 1 to 2.5 Gbit/s path with
 # tens of milliseconds of latency. The congestion control stays at the kernel
 # default so results look like what ordinary servers give a client.
-cat > /etc/sysctl.d/90-speedtest.conf << 'EOF'
+cat >/etc/sysctl.d/90-speedtest.conf <<'EOF'
 net.core.rmem_max = 67108864
 net.core.wmem_max = 67108864
 net.ipv4.tcp_rmem = 4096 131072 67108864
 net.ipv4.tcp_wmem = 4096 131072 67108864
 net.core.default_qdisc = fq
 EOF
-sysctl --system > /dev/null
+sysctl --system >/dev/null
 
 # One iperf3 server per port, so two clients (or a 2.5 Gbit/s test from two
 # hosts) can run at once. iperf3 serves one test at a time per instance.
-cat > /etc/systemd/system/iperf3@.service << 'EOF'
+cat >/etc/systemd/system/iperf3@.service <<'EOF'
 [Unit]
 Description=iperf3 server on port %i
 After=network-online.target
@@ -78,12 +78,12 @@ done
 ufw --force enable
 
 # Key-only SSH.
-cat > /etc/ssh/sshd_config.d/10-speedtest.conf << 'EOF'
+cat >/etc/ssh/sshd_config.d/10-speedtest.conf <<'EOF'
 PasswordAuthentication no
 PermitRootLogin prohibit-password
 EOF
 systemctl reload ssh
 
 mkdir -p /var/lib/speedtest-droplet
-date -u +%FT%TZ > /var/lib/speedtest-droplet/ready
+date -u +%FT%TZ >/var/lib/speedtest-droplet/ready
 echo "speedtest-droplet init finished: iperf3 on ports ${IPERF_PORTS}, allowed ${ALLOWED_CIDR}"

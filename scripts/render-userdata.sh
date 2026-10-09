@@ -88,6 +88,6 @@ if [[ "${out_path}" == "${repo_root}"/* ]] && ! git -C "${repo_root}" check-igno
 fi
 (
     umask 077
-    sed "s|__ALLOWED_CIDR__|${cidr}|" "${template}" > "${out_path}"
+    sed "s|__ALLOWED_CIDR__|${cidr}|" "${template}" >"${out_path}"
 )
 echo "Wrote ${out_path} (mode 600). Delete it once the droplet is created." >&2
