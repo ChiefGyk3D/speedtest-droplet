@@ -21,7 +21,7 @@ check() {
 renders_clean() {
     local out
     out="$("${render}" 203.0.113.7/32)" || return 1
-    [[ "${out}" == *'ALLOWED_CIDR="203.0.113.7/32"'* ]] || return 1
+    [[ "${out}" == *'ALLOWED_CIDRS="203.0.113.7/32"'* ]] || return 1
     [[ "${out}" != *'__ALLOWED_CIDR__'* ]] || return 1
     bash -n <<<"${out}"
 }
@@ -51,7 +51,7 @@ trap 'rm -rf "${tmp}" "${root}/leak-test.txt" "${root}/ok-test.userdata"' EXIT
 writes_file_mode_600() {
     "${render}" 203.0.113.7/32 -o "${tmp}/ud.txt" >/dev/null 2>&1 || return 1
     [[ "$(stat -c %a "${tmp}/ud.txt")" == "600" ]] || return 1
-    grep -q 'ALLOWED_CIDR="203.0.113.7/32"' "${tmp}/ud.txt"
+    grep -q 'ALLOWED_CIDRS="203.0.113.7/32"' "${tmp}/ud.txt"
 }
 
 refuses_unignored_file_in_repo() {
@@ -66,7 +66,16 @@ refuses_missing_directory() {
     ! "${render}" 203.0.113.7/32 -o "${tmp}/nope/ud.txt" >/dev/null 2>&1
 }
 
+renders_several() {
+    local out
+    out="$("${render}" 203.0.113.7/32 198.51.100.9/32)" || return 1
+    [[ "${out}" == *'ALLOWED_CIDRS="203.0.113.7/32 198.51.100.9/32"'* ]] || return 1
+    bash -n <<<"${out}"
+}
+
 check "renders a /32 and the output parses" renders_clean
+check "renders several CIDRs" renders_several
+check "rejects the list if any one CIDR is bad" rejects 203.0.113.7/32 0.0.0.0/0
 check "-o writes a mode 600 file outside the repo" writes_file_mode_600
 check "-o refuses a non-ignored path inside the repo" refuses_unignored_file_in_repo
 check "-o allows a git-ignored path inside the repo" allows_ignored_file_in_repo

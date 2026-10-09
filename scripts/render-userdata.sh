@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Print cloud-init.sh with the allowed address filled in, ready to paste into
+# Print cloud-init.sh with the allowed addresses filled in, ready to paste into
 # the DigitalOcean "User data" box. By default nothing is written to disk, so
-# the address never lands in the repository.
+# the addresses never land in the repository.
 #
 #   scripts/render-userdata.sh                  # allow this network's public IPv4 (/32)
 #   scripts/render-userdata.sh 203.0.113.7/32   # allow an explicit CIDR
+#   scripts/render-userdata.sh 203.0.113.7/32 198.51.100.9/32   # allow several (e.g. two uplinks)
 #   scripts/render-userdata.sh --allow-wide 203.0.113.0/24
 #   scripts/render-userdata.sh -o userdata.txt  # write a file (mode 600) instead of stdout
 #
@@ -15,7 +16,7 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 template="${here}/../cloud-init.sh"
 allow_wide=0
-cidr=""
+cidrs=()
 output=""
 
 while (($# > 0)); do
@@ -30,46 +31,54 @@ while (($# > 0)); do
             shift
             ;;
         -h | --help)
-            sed -n '2,14p' "${BASH_SOURCE[0]}"
+            sed -n '2,15p' "${BASH_SOURCE[0]}"
             exit 0
             ;;
-        *) cidr="$1" ;;
+        *) cidrs+=("$1") ;;
     esac
     shift
 done
 
-if [[ -z "${cidr}" ]]; then
+if ((${#cidrs[@]} == 0)); then
     ip="$(curl -fsS --max-time 10 https://api.ipify.org)"
-    cidr="${ip}/32"
-    echo "Detected public address, allowing ${cidr}" >&2
+    cidrs=("${ip}/32")
+    echo "Detected public address, allowing ${cidrs[0]}" >&2
 fi
 
-if [[ ! "${cidr}" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})/([0-9]{1,2})$ ]]; then
-    echo "Not an IPv4 CIDR: ${cidr}" >&2
-    exit 2
-fi
-for octet in "${BASH_REMATCH[@]:1:4}"; do
-    if ((10#${octet} > 255)); then
-        echo "Octet out of range in ${cidr}" >&2
+check_cidr() {
+    local cidr="$1"
+    if [[ ! "${cidr}" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})/([0-9]{1,2})$ ]]; then
+        echo "Not an IPv4 CIDR: ${cidr}" >&2
         exit 2
     fi
+    local octet
+    for octet in "${BASH_REMATCH[@]:1:4}"; do
+        if ((10#${octet} > 255)); then
+            echo "Octet out of range in ${cidr}" >&2
+            exit 2
+        fi
+    done
+    local prefix="${BASH_REMATCH[5]}"
+    if ((10#${prefix} > 32)); then
+        echo "Prefix out of range in ${cidr}" >&2
+        exit 2
+    fi
+    if ((10#${prefix} == 0)); then
+        echo "Refusing ${cidr}: it would open the server to everyone." >&2
+        exit 2
+    fi
+    if ((10#${prefix} < 24)) && ((allow_wide == 0)); then
+        echo "Refusing ${cidr}: wider than /24. Pass --allow-wide if you mean it." >&2
+        exit 2
+    fi
+}
+for cidr in "${cidrs[@]}"; do
+    check_cidr "${cidr}"
 done
-prefix="${BASH_REMATCH[5]}"
-if ((10#${prefix} > 32)); then
-    echo "Prefix out of range in ${cidr}" >&2
-    exit 2
-fi
-if ((10#${prefix} == 0)); then
-    echo "Refusing ${cidr}: it would open the server to everyone." >&2
-    exit 2
-fi
-if ((10#${prefix} < 24)) && ((allow_wide == 0)); then
-    echo "Refusing ${cidr}: wider than /24. Pass --allow-wide if you mean it." >&2
-    exit 2
-fi
+cidr_list="${cidrs[*]}"
 
 if [[ -z "${output}" ]]; then
-    sed "s|__ALLOWED_CIDR__|${cidr}|" "${template}"
+    sed "s|__ALLOWED_CIDRS__|${cidr_list}|" "${template}"
     exit 0
 fi
 
@@ -88,6 +97,6 @@ if [[ "${out_path}" == "${repo_root}"/* ]] && ! git -C "${repo_root}" check-igno
 fi
 (
     umask 077
-    sed "s|__ALLOWED_CIDR__|${cidr}|" "${template}" >"${out_path}"
+    sed "s|__ALLOWED_CIDRS__|${cidr_list}|" "${template}" >"${out_path}"
 )
 echo "Wrote ${out_path} (mode 600). Delete it once the droplet is created." >&2

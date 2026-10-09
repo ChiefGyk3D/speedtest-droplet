@@ -13,7 +13,7 @@ whose results swing by 20 percent between runs.
 - raises the TCP socket buffer limits so a single flow can fill a fast path;
 - runs two iperf3 servers as hardened systemd units, on ports 5201 and 5202, so
   two tests can run at once (each instance serves one test at a time);
-- turns on the host firewall, allowing **one CIDR** to reach ports 22, 5201 and 5202;
+- turns on the host firewall, allowing only the CIDRs you pass in to reach ports 22, 5201 and 5202;
 - sets key-only SSH.
 
 The allowed CIDR is not stored in this repository. `scripts/render-userdata.sh`
@@ -29,6 +29,7 @@ droplet cannot come up open to the internet.
    scripts/render-userdata.sh | xclip -selection clipboard   # or copy from the terminal
    scripts/render-userdata.sh -o ~/userdata.txt              # or write a file (mode 600)
    scripts/render-userdata.sh 203.0.113.7/32                 # or give the CIDR yourself
+   scripts/render-userdata.sh 203.0.113.7/32 198.51.100.9/32 # or several, e.g. two uplinks
    ```
 
    It rejects `0.0.0.0/0`, malformed addresses and anything wider than /24 unless

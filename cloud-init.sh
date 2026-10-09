@@ -2,21 +2,27 @@
 # Cloud-init user data for a throwaway iperf3 server on Ubuntu 24.04.
 #
 # Do not paste this file as it is: scripts/render-userdata.sh fills in
-# ALLOWED_CIDR, the only address that may reach SSH and iperf3. An unrendered
+# ALLOWED_CIDRS, the only addresses that may reach SSH and iperf3. An unrendered
 # copy refuses to run, so a droplet can never come up open to the internet.
 set -euo pipefail
 
-ALLOWED_CIDR="__ALLOWED_CIDR__"
+ALLOWED_CIDRS="__ALLOWED_CIDRS__" # one or more IPv4 CIDRs, space separated
 IPERF_PORTS="5201 5202"
 
 # Refuse before touching anything if the placeholder was not replaced.
-if [[ ! "${ALLOWED_CIDR}" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$ ]]; then
-    echo "ALLOWED_CIDR is not a rendered IPv4 CIDR: '${ALLOWED_CIDR}'" >&2
-    echo "Render this file with scripts/render-userdata.sh before use." >&2
-    exit 1
-fi
-if [[ "${ALLOWED_CIDR}" == */0 ]]; then
-    echo "Refusing ALLOWED_CIDR ${ALLOWED_CIDR}: it would open the server to everyone." >&2
+for cidr in ${ALLOWED_CIDRS}; do
+    if [[ ! "${cidr}" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$ ]]; then
+        echo "ALLOWED_CIDRS holds something that is not a rendered IPv4 CIDR: '${cidr}'" >&2
+        echo "Render this file with scripts/render-userdata.sh before use." >&2
+        exit 1
+    fi
+    if [[ "${cidr}" == */0 ]]; then
+        echo "Refusing ${cidr}: it would open the server to everyone." >&2
+        exit 1
+    fi
+done
+if [[ -z "${ALLOWED_CIDRS// /}" ]]; then
+    echo "ALLOWED_CIDRS is empty. Render this file with scripts/render-userdata.sh." >&2
     exit 1
 fi
 
@@ -71,9 +77,11 @@ done
 ufw --force reset
 ufw default deny incoming
 ufw default allow outgoing
-ufw allow from "${ALLOWED_CIDR}" to any port 22 proto tcp
-for port in ${IPERF_PORTS}; do
-    ufw allow from "${ALLOWED_CIDR}" to any port "${port}"
+for cidr in ${ALLOWED_CIDRS}; do
+    ufw allow from "${cidr}" to any port 22 proto tcp
+    for port in ${IPERF_PORTS}; do
+        ufw allow from "${cidr}" to any port "${port}"
+    done
 done
 ufw --force enable
 
@@ -86,4 +94,4 @@ systemctl reload ssh
 
 mkdir -p /var/lib/speedtest-droplet
 date -u +%FT%TZ >/var/lib/speedtest-droplet/ready
-echo "speedtest-droplet init finished: iperf3 on ports ${IPERF_PORTS}, allowed ${ALLOWED_CIDR}"
+echo "speedtest-droplet init finished: iperf3 on ports ${IPERF_PORTS}, allowed ${ALLOWED_CIDRS}"
