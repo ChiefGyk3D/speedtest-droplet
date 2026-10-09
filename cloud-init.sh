@@ -90,7 +90,13 @@ cat >/etc/ssh/sshd_config.d/10-speedtest.conf <<'EOF'
 PasswordAuthentication no
 PermitRootLogin prohibit-password
 EOF
-systemctl reload ssh
+# Ubuntu 24.04 starts sshd on demand (ssh.socket), so the service may not be
+# running yet; new connections read the drop-in file either way. Check the
+# config is valid, and reload only if the service is up.
+sshd -t
+if systemctl is-active --quiet ssh.service; then
+    systemctl reload ssh.service
+fi
 
 mkdir -p /var/lib/speedtest-droplet
 date -u +%FT%TZ >/var/lib/speedtest-droplet/ready
