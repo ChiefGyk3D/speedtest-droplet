@@ -33,7 +33,7 @@ if ((${#cidrs[@]} == 0)); then
     echo "Detected public address, allowing ${cidrs[0]}" >&2
 fi
 for cidr in "${cidrs[@]}"; do
-    check_cidr "${cidr}"
+    check_cidr "${cidr}" "${allow_wide}"
 done
 sources="${cidrs[*]}"
 

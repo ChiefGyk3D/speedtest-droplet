@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Shared CIDR handling for the render scripts. The caller sets allow_wide (0 or 1).
+# Shared CIDR handling for the render scripts.
 
 # Print this network's public IPv4 as a /32.
 detect_public_cidr() {
@@ -9,9 +9,9 @@ detect_public_cidr() {
 }
 
 # Exit 2 unless the argument is a sane IPv4 CIDR: valid octets and prefix, never
-# /0, and nothing wider than /24 unless allow_wide=1.
+# /0, and nothing wider than /24 unless the second argument is 1.
 check_cidr() {
-    local cidr="$1"
+    local cidr="$1" allow_wide="${2:-0}"
     if [[ ! "${cidr}" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})/([0-9]{1,2})$ ]]; then
         echo "Not an IPv4 CIDR: ${cidr}" >&2
         exit 2
