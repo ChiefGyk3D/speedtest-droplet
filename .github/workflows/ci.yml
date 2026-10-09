@@ -1,0 +1,26 @@
+# CI for speedtest-droplet. The jobs live in ChiefGyk3D/git-your-ship-together; this file
+# says only what is specific to this repository.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    uses: ChiefGyk3D/git-your-ship-together/.github/workflows/bash-ci.yml@bb319828a6a1351873e44f55838e0b9216de318f # v1.17.0
+    permissions:
+      contents: read
+    with:
+      shfmt-args: -i 4 -ci
+      test-command: bash tests/test-render.sh
+      egress-policy: block

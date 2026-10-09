@@ -1,0 +1,5 @@
+# A rendered user-data file carries the allowed address. Render to the clipboard
+# or stdout; if you save one anyway, it must not be committed.
+rendered/
+*.userdata
+*.userdata.sh
