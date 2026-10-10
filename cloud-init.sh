@@ -94,6 +94,7 @@ EOF
 # Ubuntu 24.04 starts sshd on demand (ssh.socket), so the service may not be
 # running yet; new connections read the drop-in file either way. Check the
 # config is valid, and reload only if the service is up.
+mkdir -p /run/sshd # sshd -t needs its privilege-separation directory
 sshd -t
 if systemctl is-active --quiet ssh.service; then
     systemctl reload ssh.service
